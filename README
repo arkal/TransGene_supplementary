@@ -1,0 +1,98 @@
+This repository contains all the scripts used for generating data in the TransGene paper.
+
+Please contact aarao@ucsc.edu if you have any questions regarding these scripts.
+
+## Step 1: Setup the environment
+    
+    git clone https://www.github.com/arkal/transgene_supplementary
+    cd transgene_supplementary
+    virtualenv venv
+    source venv/bin/activate
+    pip install transgene==2.5.0 
+    pip install dill
+    pip install toil==3.8.0
+    pip install pandas xlrd
+
+    ## download gdc-client and place it at /usr/local/bin/gdc-client   
+
+## Step 2: Download the required auxillary files
+
+#    gencode gencode.v22.annotation.gtf
+        
+        wget -c ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_22/gencode.v22.annotation.gtf.gz
+        gunzip gencode.v22.annotation.gtf.gz
+
+#    gencode.v22.pc_transcripts.fa
+        
+        wget -c ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_22/gencode.v22.pc_transcripts.fa.gz
+        gunzip gencode.v22.pc_transcripts.fa.gz
+
+#    gencode.v22.pc_translations.fa
+        
+        wget -c ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_22/gencode.v22.pc_translations.fa.gz
+        gunzip gencode.v22.pc_translations.fa.gz
+
+#    STable 1.xlsx
+        
+        curl -L 'https://oup.silverchair-cdn.com/oup/backfile/Content_public/Journal/bioinformatics/33/4/10.1093_bioinformatics_btw674/4/btw674_Supplementary_Data.zip?Expires=1524703130&Signature=jFqXDJ~yC8hsUkQ9u0hzS1ENXNe26By73MsfPuJ8NumsGGDkLe3si8kCgVzCuCGE1CUT8BpUi6Yylcuo0NpQBDKUfPdWvtSKpQDsZl22iIxXga1YWU9ob40LPPc4ptR~~iP2krJUHfhN2qpML~TRXvBnfrwoU5B2QXskiO0kyOgna-zBbuYUusfo6sZ9CdlA0sEGNIceSUYL02sQMa6LjGYWL~Yxv5ILLn-y95~Y6vj1dtptyHI7yKAax4R0-1glmrQxqixHXwgLA0xJBOeTlKa1iZn4-tPCvWOY9GHxJV0ePveHn4F0coMzdA06XNmoMYZXUwsnLduSNY4smHDjTw__&Key-Pair-Id=APKAIE5G5CRDK6RD3PGA' -o intergrate_neo_supplementary.zip
+        unzip intergrate_neo_supplementary.zip
+#    GRCh38.d1.vd1.fa
+        curl -L 'https://api.gdc.cancer.gov/data/62f23fad-0f24-43fb-8844-990d531947cf' -o GRCh38.d1.vd1.fa.tar.gz
+        tar -zxvf GRCh38.d1.vd1.fa.tar.gz && rm GRCh38.d1.vd1.fa.tar.gz
+
+#    Sample sheets for PRAD RNA
+#      Manually obtained by adding all PRAD RNA to empty cart in GDC then clicking "sample sheet" then 
+#      renaming downloaded file to gdc_sample_sheet_rna_bams.tsv
+
+#    Sample sheets for PRAD DNA
+#      Manually obtained by adding all PRAD DNA to empty cart in GDC then clicking "sample sheet" then 
+#      renaming downloaded file to gdc_sample_sheet_dna_bams.tsv
+
+#    Sample sheets for PRAD VCFs
+#      Manually obtained by adding all PRAD VCFs to  empty cart in GDC then clicking "sample sheet"  
+#      then renaming downloaded file to gdc_sample_sheet_vcfs.tsv
+
+
+## Step 3: Identify proper sample Trios (Tumor DNA, Tumor RNA and Normal DNA) and filter the sample
+##         sheets
+# This filtering criteria is something we did for another project but used for this project as well.
+# We do not use the DNA in the TransGene validation run, only in filtering samples.
+# protect_samples.txt was created manually in the past and contained the samples we were interested
+# in.
+    
+    python parse_sample_sheets.py
+
+
+## Step 4: Convert INTEGRATE-Neo supplementary to bedpes and get all samples with fusions
+    
+    mkdir fusions
+    python stable1_to_bedpes.py
+
+## Step 5: Identify `sample_groups.dill` -- The GDC RNA and VCF UUIDs) for all samples 
+
+    python identify_sample_groups.py
+
+## STEP 6: Run transgene in a completely automated fashion    
+
+    mkdir `pwd`/outputs
+    python run_automated_transgene.py -S sample_groups.dill \
+                                      -C <GDC_TOKEN> \
+                                      -O `pwd`/outputs \
+                                      -I `pwd`
+
+
+## STEP 7: Generate metrics
+    
+    python get_metrics.py
+
+## Step 8: Get coexpression metrics
+    
+    # Number of times a mutants affected the same codon    
+        tree -fi outputs/ | grep log$ | while read line
+        do
+          grep "Merging" ${line} > /dev/null && echo $line
+          grep "Merging" ${line}
+        done
+    
+    # Number of times mutants affected the same IAR
+        python get_coexp_metrics.py
